@@ -30,6 +30,7 @@ const saveLogisticsRequest = async(logisticsRequest) => {
         console.log(`${new Date().toLocaleString('ru')} Saving logisticsRequests response: `, result);
         return result;
     } catch(e) {
+        console.log(`${new Date().toLocaleString('ru')} Saving logisticsRequests error: `, e);
         return false;
     }
 }

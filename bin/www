@@ -240,8 +240,8 @@ const checkNewLogisticsRequestAndSend = async (sheet, oldCountInner) => {
         managerName: sheet.getCellByA1(`${sheetColumns.managerName}${rowIndexForHandle}`).value,
         productName: sheet.getCellByA1(`${sheetColumns.productName}${rowIndexForHandle}`).value,
         quantity: sheet.getCellByA1(`${sheetColumns.quantity}${rowIndexForHandle}`).value,
-        departureLocation: sheet.getCellByA1(`${sheetColumns.departure}${rowIndexForHandle}`).value,
-        destinationLocation: sheet.getCellByA1(`${sheetColumns.destination}${rowIndexForHandle}`).value,
+        departure: sheet.getCellByA1(`${sheetColumns.departure}${rowIndexForHandle}`).value,
+        destination: sheet.getCellByA1(`${sheetColumns.destination}${rowIndexForHandle}`).value,
       }
 
       if(sheet.getCellByA1(`${sheetColumns.tk}${rowIndexForHandle}`).value) {
