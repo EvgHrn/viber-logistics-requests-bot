@@ -1,0 +1,450 @@
+#!/usr/bin/env node
+
+import {saveLogisticsRequest} from "../utils";
+
+/**
+ * Module dependencies.
+ */
+
+var app = require('../app');
+var debug = require('debug')('viber-logistics-requests-bot:server');
+const https = require('https');
+const fs = require('fs');
+const { GoogleSpreadsheet } = require('google-spreadsheet');
+const nodemailer = require("nodemailer");
+const {sheetColumns} = require('../constants');
+const {
+  getLastRowIndexWithValue,
+  saveNonstandardOrderRequest,
+  getLogisticsRequestFromDbByTimestamp
+} = require('../utils');
+
+const ViberBot = require('viber-bot').Bot;
+const BotEvents = require('viber-bot').Events;
+const TextMessage = require('viber-bot').Message.Text;
+
+require('dotenv').config();
+
+let transporter = nodemailer.createTransport({
+  host: "smtp.yandex.ru",
+  port: 465,
+  secure: true, // true for 465, false for other ports
+  auth: {
+    user: process.env.POST_USER, // generated ethereal user
+    pass: process.env.POST_PASS, // generated ethereal password
+  },
+});
+
+const sendEmail = async(mailTransporter, toEmail, toName, text) => {
+  console.log(`${new Date().toLocaleString('ru')} Gonna send text email with email and name: `, toEmail, toName);
+  let info = await mailTransporter.sendMail({
+    from: `"Расчёты логистики" <${process.env.POST_USER}>`, // sender address
+    // to: process.env.EMAIL_FOR_TEST, // list of receivers
+    to: toEmail,
+    subject: `Расчёт логистики для ${toName}`, // Subject line
+    text, // plain text body
+    // html: "<b>Hello world?</b>", // html body
+  });
+
+  console.log(`${new Date().toLocaleString('ru')} Message sent: %s`, info.messageId);
+// Message sent: <b658f8ca-6296-ccf4-8306-87d57a0b4321@example.com>
+
+// Preview only available when sending through an Ethereal account
+//   console.log(`${new Date().toLocaleString('ru')} Preview URL: %s`, nodemailer.getTestMessageUrl(info));
+// Preview URL: https://ethereal.email/message/WaQKMgKddxQDoou...
+}
+
+let oldRowCount = 0;
+
+const bot = new ViberBot({
+  authToken: process.env.TOKEN,
+  name: process.env.NAME,
+  avatar: process.env.AVATAR
+});
+
+bot.on(BotEvents.MESSAGE_RECEIVED, (message, response) => {
+  // Echo's back the message to the client. Your bot logic should sit here.
+  console.log('----------------------------------------------------------------');
+  console.log(`${new Date().toLocaleString('ru')}`);
+  console.log(`New message: `, message.text);
+  console.log('From: ', response.userProfile.id);
+  console.log('Name: ', response.userProfile.name);
+  bot.sendMessage({id: process.env.ADMIN_ID}, new TextMessage(`New message from user: ${response.userProfile.id} ${response.userProfile.name}: ${message.text}`));
+  // const usersArr = JSON.parse(process.env.USERS_STR).users;
+  // console.log('Users: ', usersArr);
+  // if(usersArr.some((userObj) => userObj.viber_id === response.userProfile.id)) {
+  //   const orderNumber = strToOrderNumber(message.text.trim());
+  //   if(orderNumber) {
+  //     if(!process.env.ST) {
+  //       console.error('Env variable error');
+  //       response.send(new TextMessage('Ошибка сервера'));
+  //       return;
+  //     }
+  //     getParsedOrderData(orderNumber, process.env.ST)
+  //         .then((orderObj) => {
+  //           if(orderObj && orderObj.data) {
+  //             const text = Object.keys(orderObj.data).reduce((acc, key) => {
+  //               acc = `${acc} *${key}* :  ${orderObj.data[key].trim()}\n`;
+  //               return acc;
+  //             }, '');
+  //             // console.log('Text: ', text);
+  //             response.send(new TextMessage(text));
+  //           } else {
+  //             response.send(new TextMessage('Ошибка сервера. Нет данных о заказе'));
+  //           }
+  //           if(orderObj && orderObj.status) {
+  //             const text = Object.keys(orderObj.status).reduce((acc, key) => {
+  //               if(orderObj.status[key].isDone) {
+  //                 acc = `${acc} *${key.slice(1, -1)}* :  ${orderObj.status[key].doneDate.toLocaleString('ru')} ${orderObj.status[key].userAccessStr}\n`;
+  //               } else {
+  //                 acc = `${acc} ${key.slice(1, -1)} :  -\n`;
+  //               }
+  //               return acc;
+  //             }, '');
+  //             // console.log('Text: ', text);
+  //             response.send(new TextMessage(text));
+  //           } else {
+  //             response.send(new TextMessage('Ошибка сервера. Нет данных о статусе'));
+  //           }
+  //         })
+  //   } else {
+  //     response.send(new TextMessage('Неверный номер'));
+  //   }
+  // } else {
+  //   const message = new TextMessage('Нет доступа');
+  //   console.log('Unknown user: ', response.userProfile);
+  //   bot.getUserDetails(response.userProfile)
+  //       .then(userDetails  => {
+  //         bot.sendMessage({id: process.env.ADMIN_ID}, new TextMessage(`Unknown user: ${response.userProfile.id} ${response.userProfile.name}`));
+  //       })
+  //   response.send(message);
+  // }
+});
+
+
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.PORT || '3000');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+
+const keyPathStr = `${process.env.SSL_KEY_PATH_FILE}`;
+const certPathStr = `${process.env.SSL_CERT_PATH_FILE}`;
+const caPathStr = `${process.env.SSL_CA_PATH_FILE}`;
+// console.log("SSL options: ", keyPathStr, certPathStr, caPathStr);
+const serverSSLOptions = {
+  key: fs.readFileSync(keyPathStr),
+  cert: fs.readFileSync(certPathStr),
+  ca: fs.readFileSync(caPathStr),
+};
+
+const server = https.createServer(serverSSLOptions, bot.middleware()).listen(port, () => bot.setWebhook(`${process.env.PUBLIC_URL}:${port}`));
+// console.log(`${new Date().toLocaleString('ru')} Server created: `, server);
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+// server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+}
+
+const checkNewLogisticsRequestAndSend = async (sheet, oldCountInner) => {
+
+  const newRowCount = sheet.rowCount;
+
+  console.log(`${new Date().toLocaleString('ru')} checkNewLogisticsRequestAndSend: New rows count: `, newRowCount);
+  console.log(`${new Date().toLocaleString('ru')} checkNewLogisticsRequestAndSend: Old rows count: `, oldCountInner);
+
+  oldRowCount = newRowCount;
+
+  if((oldCountInner > 0) && (oldCountInner < newRowCount)) {
+    console.log(`${new Date().toLocaleString('ru')} checkNewLogisticsRequestAndSend: Count changes from ${oldCountInner} to ${newRowCount}`);
+
+    const lastRowIndexWithValue = getLastRowIndexWithValue(sheet);
+
+    for(let rowIndex = 0; rowIndex < (newRowCount - oldCountInner); rowIndex++) {
+      // send to back new requests
+      const rowIndexForHandle = lastRowIndexWithValue -  rowIndex;
+      // console.log(`${new Date().toLocaleString('ru')} Timestamp cell value: `, sheet.getCellByA1(`${sheetColumns.timestamp}${rowIndexForHandle}`).value);
+      // console.log(`${new Date().toLocaleString('ru')} Timestamp cell valueType: `, sheet.getCellByA1(`${sheetColumns.timestamp}${rowIndexForHandle}`).valueType);
+      // console.log(`${new Date().toLocaleString('ru')} Timestamp cell formattedValue: `, sheet.getCellByA1(`${sheetColumns.timestamp}${rowIndexForHandle}`).formattedValue);
+      // console.log(`${new Date().toLocaleString('ru')} Timestamp cell formula: `, sheet.getCellByA1(`${sheetColumns.timestamp}${rowIndexForHandle}`).formula);
+      // console.log(`${new Date().toLocaleString('ru')} Timestamp date: `, new Date(sheet.getCellByA1(`${sheetColumns.timestamp}${rowIndexForHandle}`).value));
+      const request = {
+        timestamp: sheet.getCellByA1(`${sheetColumns.timestamp}${rowIndexForHandle}`).formattedValue,
+        region: sheet.getCellByA1(`${sheetColumns.region}${rowIndexForHandle}`).value,
+        email: sheet.getCellByA1(`${sheetColumns.email}${rowIndexForHandle}`).value,
+        managerName: sheet.getCellByA1(`${sheetColumns.managerName}${rowIndexForHandle}`).value,
+        productName: sheet.getCellByA1(`${sheetColumns.productName}${rowIndexForHandle}`).value,
+        quantity: sheet.getCellByA1(`${sheetColumns.quantity}${rowIndexForHandle}`).value,
+        departureLocation: sheet.getCellByA1(`${sheetColumns.departure}${rowIndexForHandle}`).value,
+        destinationLocation: sheet.getCellByA1(`${sheetColumns.destination}${rowIndexForHandle}`).value,
+      }
+
+      if(sheet.getCellByA1(`${sheetColumns.tk}${rowIndexForHandle}`).value) {
+        request.tk = sheet.getCellByA1(`${sheetColumns.tk}${rowIndexForHandle}`).value;
+      }
+
+      if(sheet.getCellByA1(`${sheetColumns.calculation}${rowIndexForHandle}`).value) {
+        request.calculation = sheet.getCellByA1(`${sheetColumns.calculation}${rowIndexForHandle}`).value;
+      }
+
+      if(sheet.getCellByA1(`${sheetColumns.logistician}${rowIndexForHandle}`).value) {
+        request.logistician = sheet.getCellByA1(`${sheetColumns.logistician}${rowIndexForHandle}`).value;
+      }
+
+      const savingResult = await saveLogisticsRequest(request);
+
+      // TODO send saving bad result to service bot
+      if(!savingResult) {
+        continue;
+      }
+
+      // const managerNameCell = sheet.getCellByA1(`C${rowIndexForHandle}`);
+      // const productNameCell = sheet.getCellByA1(`E${rowIndexForHandle}`);
+      // const regionCell = sheet.getCellByA1(`I${rowIndexForHandle}`);
+      // const text = `${regionCell.value}, ${managerNameCell.value}, ${productNameCell.value}`;
+      // console.log(`${new Date().toLocaleString('ru')} Text: `, text);
+      // bot.sendMessage({id: userId}, new TextMessage(`Новый запрос на просчёт:\n ${text}`));
+    }
+
+    const usersArr = JSON.parse(process.env.USERS_STR).users;
+    console.log(`${new Date().toLocaleString('ru')} checkNewLogisticsRequestAndSend: Users: `, usersArr);
+    for(let userObjIndex = 0; userObjIndex < usersArr.length; userObjIndex++) {
+      const userId = usersArr[userObjIndex].viber_id;
+      console.log(`${new Date().toLocaleString('ru')} checkNewLogisticsRequestAndSend: Gonna handle user `, userId);
+
+      console.log(`${new Date().toLocaleString('ru')} checkNewLogisticsRequestAndSend: lastRowIndexWithValue: `, lastRowIndexWithValue);
+      for(let rowIndex = 0; rowIndex < (newRowCount - oldCountInner); rowIndex++) {
+        const rowIndexForHandle = lastRowIndexWithValue -  rowIndex;
+        const managerNameCell = sheet.getCellByA1(`${sheetColumns.managerName}${rowIndexForHandle}`);
+        const productNameCell = sheet.getCellByA1(`${sheetColumns.productName}${rowIndexForHandle}`);
+        const regionCell = sheet.getCellByA1(`${sheetColumns.region}${rowIndexForHandle}`);
+        const text = `${regionCell.value}, ${managerNameCell.value}, ${productNameCell.value}`;
+        console.log(`${new Date().toLocaleString('ru')} checkNewLogisticsRequestAndSend: Text: `, text);
+
+        if(managerNameCell.value === 'Тест') {
+          console.log(`${new Date().toLocaleString('ru')} checkNewLogisticsRequestAndSend: Test request, so do not send to bot`);
+          continue;
+        }
+        bot.sendMessage({id: userId}, new TextMessage(`Новый запрос на расчёт:\n ${text}`));
+      }
+
+    }
+
+  }
+}
+
+const checkCalculationUpdate = async(sheet) => {
+
+  const lastRowIndexWithValue = getLastRowIndexWithValue(sheet);
+
+  // handle all rows with data
+  for(let rowIndex = 1; rowIndex <= lastRowIndexWithValue; rowIndex++) {
+    const timestamp = sheet.getCellByA1(`${sheetColumns.timestamp}${rowIndex}`).formattedValue;
+
+    // get data from db
+    const request = await getLogisticsRequestFromDbByTimestamp(timestamp);
+    console.log(`${new Date().toLocaleString('ru')} checkCalculationUpdate: Last logisticsRequest from db: `, request);
+
+    if(!request) {
+      // TODO send to service bot
+      continue;
+    }
+
+    // get data from sheet
+    const sheetCalculation =
+        sheet.getCellByA1(`${sheetColumns.calculation}${rowIndex}`).value ?
+            `${sheet.getCellByA1(`${sheetColumns.calculation}${rowIndex}`).value}` :
+            '';
+    const dbCalculation =
+        (('calculation' in request) && request.calculation) ?
+            `${request.calculation}` :
+            '';
+    console.log(`${new Date().toLocaleString('ru')} sheetCalculation, dbCalculation: ${sheetCalculation}, ${dbCalculation}`);
+    const sheetLogistician =
+        sheet.getCellByA1(`${sheetColumns.logistician}${rowIndex}`).value ?
+            `${sheet.getCellByA1(`${sheetColumns.logistician}${rowIndex}`).value}` :
+            '';
+    const dbLogistician = (('logistician' in request) && request.logistician) ?
+        `${request.logistician}` :
+        '';
+    console.log(`${new Date().toLocaleString('ru')} sheetLogistician, dbLogistician: ${sheetLogistician}, ${dbLogistician}`);
+    // const sheetComment = sheet.getCellByA1(`${sheetColumns.comment}${rowIndex}`).value ? `${sheet.getCellByA1(`${sheetColumns.comment}${rowIndex}`).value}` : '';
+    // const dbComment = (('comment' in request) && request.comment) ? `${request.comment}` : '';
+    // console.log(`${new Date().toLocaleString('ru')} sheetComment, dbComment: ${sheetComment}, ${dbComment}`);
+    // const sheetSpecificationPath = sheet.getCellByA1(`${sheetColumns.specificationPath}${rowIndex}`).value ? `${sheet.getCellByA1(`${sheetColumns.specificationPath}${rowIndex}`).value}` : '';
+    // const dbSpecificationPath = (('specificationPath' in request) && request.specificationPath) ? `${request.specificationPath}` : '';
+    // console.log(`${new Date().toLocaleString('ru')} sheetSpecificationPath, dbSpecificationPath: ${sheetSpecificationPath}, ${dbSpecificationPath}`);
+
+    // compare data
+
+    let emailText = '';
+
+    if(sheetCalculation !== dbCalculation) {
+      if(sheetCalculation.length && !dbCalculation.length) {
+        emailText = `${emailText}Добавлен расчёт на ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}:\n\n${sheetCalculation}\n\n`;
+      } else if(sheetCalculation.length && dbCalculation.length){
+        emailText = `${emailText}Изменён расчёт на ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity} с\n${dbCalculation}\nна:\n\n${sheetCalculation}\n\n`;
+      } else if(!sheetCalculation.length && dbCalculation.length){
+        emailText = `${emailText}Удалён расчёт из вашего запроса номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}\n`;
+      }
+    }
+
+    if(sheetLogistician !== dbLogistician) {
+      if(sheetLogistician.length && !dbLogistician.length) {
+        emailText =
+            `${emailText}Добавлен ответственный за ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}:\n\n${sheetLogistician}\n\n`;
+      } else if(sheetLogistician.length && dbLogistician.length){
+        emailText =
+            `${emailText}Изменён ответственный за ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity} с\n${dbLogistician}\nна:\n\n${sheetLogistician}\n\n`;
+      } else if(!sheetLogistician.length && dbLogistician.length){
+        emailText =
+            `${emailText}Удалён ответственный за запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}\n`;
+      }
+    }
+
+    // if(sheetComment !== dbComment) {
+    //   if(sheetComment.length && !dbComment.length) {
+    //     emailText = `${emailText}Добавлен комментарий на ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}:\n\n${sheetComment}\n\n`;
+    //   } else if(sheetComment.length && dbComment.length){
+    //     emailText = `${emailText}Изменён комментарий на ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity} с\n${dbComment}\nна:\n\n${sheetComment}\n\n`;
+    //   } else if(!sheetComment.length && dbComment.length){
+    //     emailText = `${emailText}Удалён комментарий из вашего запроса номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}\n`;
+    //   }
+    // }
+
+    // if change send to manager and update in db
+    if(emailText.length) {
+      console.log(`${new Date().toLocaleString('ru')} New email text: `, emailText);
+        // send email
+      sendEmail(
+        transporter,
+          `${sheet.getCellByA1(`${sheetColumns.email}${rowIndex}`).value}`,
+        sheet.getCellByA1(`${sheetColumns.managerName}${rowIndex}`).value,
+        emailText
+      );
+      sendEmail(
+          transporter,
+          process.env.EMAIL_FOR_TEST,
+          sheet.getCellByA1(`${sheetColumns.managerName}${rowIndex}`).value,
+          emailText
+      );
+      // if(sheetSpecificationPath !== dbSpecificationPath) {
+      //   const usersArr = JSON.parse(process.env.USERS_STR).users;
+      //   const sheetSpec = sheet.getCellByA1(`${sheetColumns.specificationPath}${rowIndex}`).value;
+      //   const sheetProduct = sheet.getCellByA1(`${sheetColumns.productName}${rowIndex}`).value;
+      //   for(let userObjIndex = 0; userObjIndex < usersArr.length; userObjIndex++) {
+      //     const userId = usersArr[userObjIndex].viber_id;
+      //     if(!sheetSpecificationPath || sheetSpecificationPath === 'null' || (sheetSpecificationPath && !sheetSpecificationPath.length)) {
+      //       bot.sendMessage({id: userId}, new TextMessage(`Удалена спецификация на запрос номер ${rowIndex} на ${sheetProduct}`));
+      //     } else {
+      //       bot.sendMessage({id: userId}, new TextMessage(`Новая спецификация на запрос номер ${rowIndex} на ${sheetProduct}:\n ${sheetSpec}`));
+      //     }
+      //   }
+      // }
+      if('_id' in request) {
+        delete request._id;
+      }
+      if('createdAt' in request) {
+        delete request.createdAt;
+      }
+      if('updatedAt' in request) {
+        delete request.updatedAt;
+      }
+      if('__v' in request) {
+        delete request.__v;
+      }
+      const savingResult = await saveLogisticsRequest({
+        ...request,
+        calculation: sheetCalculation,
+        logistician: sheetLogistician
+      });
+    }
+
+  }
+
+
+};
+
+const checkUpdates = async(oldRowCount) => {
+  const doc = new GoogleSpreadsheet(process.env.SHEET_ID);
+  await doc.useApiKey(process.env.SHEET_API_KEY);
+  await doc.loadInfo();
+  console.log(`${new Date().toLocaleString('ru')} Doc: `, doc.title);
+  const sheet = doc.sheetsByIndex[0];
+  await sheet.loadCells(`${sheetColumns.timestamp}1:${sheetColumns.logistician}${sheet.rowCount}`);
+  console.log(`${new Date().toLocaleString('ru')} Got cells`);
+
+  checkNewLogisticsRequestAndSend(sheet, oldRowCount);
+  checkCalculationUpdate(sheet);
+}
+
+setTimeout(() => checkUpdates(oldRowCount), 5000);
+
+setInterval(() => checkUpdates(oldRowCount), 120000);
