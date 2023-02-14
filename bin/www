@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-import {saveLogisticsRequest} from "../utils";
-
 /**
  * Module dependencies.
  */
@@ -15,7 +13,7 @@ const nodemailer = require("nodemailer");
 const {sheetColumns} = require('../constants');
 const {
   getLastRowIndexWithValue,
-  saveNonstandardOrderRequest,
+  saveLogisticsRequest,
   getLogisticsRequestFromDbByTimestamp
 } = require('../utils');
 
