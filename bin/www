@@ -354,18 +354,18 @@ const checkCalculationUpdate = async(sheet) => {
       }
     }
 
-    if(sheetLogistician !== dbLogistician) {
-      if(sheetLogistician.length && !dbLogistician.length) {
-        emailText =
-            `${emailText}Добавлен ответственный за ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}:\n\n${sheetLogistician}\n\n`;
-      } else if(sheetLogistician.length && dbLogistician.length){
-        emailText =
-            `${emailText}Изменён ответственный за ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity} с\n${dbLogistician}\nна:\n\n${sheetLogistician}\n\n`;
-      } else if(!sheetLogistician.length && dbLogistician.length){
-        emailText =
-            `${emailText}Удалён ответственный за запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}\n`;
-      }
-    }
+    // if(sheetLogistician !== dbLogistician) {
+    //   if(sheetLogistician.length && !dbLogistician.length) {
+    //     emailText =
+    //         `${emailText}Добавлен ответственный за ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}:\n\n${sheetLogistician}\n\n`;
+    //   } else if(sheetLogistician.length && dbLogistician.length){
+    //     emailText =
+    //         `${emailText}Изменён ответственный за ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity} с\n${dbLogistician}\nна:\n\n${sheetLogistician}\n\n`;
+    //   } else if(!sheetLogistician.length && dbLogistician.length){
+    //     emailText =
+    //         `${emailText}Удалён ответственный за запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}\n`;
+    //   }
+    // }
 
     // if(sheetComment !== dbComment) {
     //   if(sheetComment.length && !dbComment.length) {
