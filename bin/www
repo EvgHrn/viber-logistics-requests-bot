@@ -346,11 +346,11 @@ const checkCalculationUpdate = async(sheet) => {
 
     if(sheetCalculation !== dbCalculation) {
       if(sheetCalculation.length && !dbCalculation.length) {
-        emailText = `${emailText}Добавлен расчёт на ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}:\n\n${sheetCalculation}\n\n`;
+        emailText = `${emailText}Добавлен расчёт на ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}, городом отгрузки ${request.departure} и доставкой в ${request.destination}:\n\n${sheetCalculation}\n\n`;
       } else if(sheetCalculation.length && dbCalculation.length){
-        emailText = `${emailText}Изменён расчёт на ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity} с\n${dbCalculation}\nна:\n\n${sheetCalculation}\n\n`;
+        emailText = `${emailText}Изменён расчёт на ваш запрос номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}, городом отгрузки ${request.departure} и доставкой в ${request.destination} с\n${dbCalculation}\nна:\n\n${sheetCalculation}\n\n`;
       } else if(!sheetCalculation.length && dbCalculation.length){
-        emailText = `${emailText}Удалён расчёт из вашего запроса номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}\n`;
+        emailText = `${emailText}Удалён расчёт из вашего запроса номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}, городом отгрузки ${request.departure} и доставкой в ${request.destination}\n`;
       }
     }
 
