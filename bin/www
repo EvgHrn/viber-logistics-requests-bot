@@ -303,7 +303,7 @@ const checkCalculationUpdate = async(sheet) => {
   const lastRowIndexWithValue = getLastRowIndexWithValue(sheet);
 
   // handle all rows with data
-  for(let rowIndex = 1; rowIndex <= lastRowIndexWithValue; rowIndex++) {
+  for(let rowIndex = (lastRowIndexWithValue > 52 ? (lastRowIndexWithValue - 50) : 1); rowIndex <= lastRowIndexWithValue; rowIndex++) {
     const timestamp = sheet.getCellByA1(`${sheetColumns.timestamp}${rowIndex}`).formattedValue;
 
     // get data from db
@@ -443,6 +443,6 @@ const checkUpdates = async(oldRowCount) => {
   checkCalculationUpdate(sheet);
 }
 
-setTimeout(() => checkUpdates(oldRowCount), 5000);
+setTimeout(() => checkUpdates(oldRowCount), 10000);
 
 setInterval(() => checkUpdates(oldRowCount), 120000);
