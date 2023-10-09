@@ -16,6 +16,7 @@ const {
   saveLogisticsRequest,
   getLogisticsRequestFromDbByTimestamp
 } = require('../utils');
+const {parse, differenceInMinutes} = require("date-fns");
 
 const ViberBot = require('viber-bot').Bot;
 const BotEvents = require('viber-bot').Events;
@@ -302,15 +303,16 @@ const checkCalculationUpdate = async(sheet) => {
 
   const lastRowIndexWithValue = getLastRowIndexWithValue(sheet);
 
-  // handle all rows with data
+  // handle last 50 rows with data
   for(let rowIndex = (lastRowIndexWithValue > 52 ? (lastRowIndexWithValue - 50) : 1); rowIndex <= lastRowIndexWithValue; rowIndex++) {
     const timestamp = sheet.getCellByA1(`${sheetColumns.timestamp}${rowIndex}`).formattedValue;
 
-    // get data from db
+    // get data from db by timestamp
     const request = await getLogisticsRequestFromDbByTimestamp(timestamp);
-    console.log(`${new Date().toLocaleString('ru')} checkCalculationUpdate: Last logisticsRequest from db: `, request);
-
-    if(!request) {
+    if(request) {
+      console.log(`${new Date().toLocaleString('ru')} checkCalculationUpdate: Last logisticsRequest from db by timestamp `, timestamp);
+    } else {
+      console.error(`${new Date().toLocaleString('ru')} checkCalculationUpdate: Getting last logisticsRequest from db by timestamp error`, timestamp);
       // TODO send to service bot
       continue;
     }
@@ -324,7 +326,7 @@ const checkCalculationUpdate = async(sheet) => {
         (('calculation' in request) && request.calculation) ?
             `${request.calculation}` :
             '';
-    console.log(`${new Date().toLocaleString('ru')} sheetCalculation, dbCalculation: ${sheetCalculation}, ${dbCalculation}`);
+    // console.log(`${new Date().toLocaleString('ru')} sheetCalculation, dbCalculation: ${sheetCalculation}, ${dbCalculation}`);
     const sheetLogistician =
         sheet.getCellByA1(`${sheetColumns.logistician}${rowIndex}`).value ?
             `${sheet.getCellByA1(`${sheetColumns.logistician}${rowIndex}`).value}` :
@@ -332,7 +334,7 @@ const checkCalculationUpdate = async(sheet) => {
     const dbLogistician = (('logistician' in request) && request.logistician) ?
         `${request.logistician}` :
         '';
-    console.log(`${new Date().toLocaleString('ru')} sheetLogistician, dbLogistician: ${sheetLogistician}, ${dbLogistician}`);
+    // console.log(`${new Date().toLocaleString('ru')} sheetLogistician, dbLogistician: ${sheetLogistician}, ${dbLogistician}`);
     // const sheetComment = sheet.getCellByA1(`${sheetColumns.comment}${rowIndex}`).value ? `${sheet.getCellByA1(`${sheetColumns.comment}${rowIndex}`).value}` : '';
     // const dbComment = (('comment' in request) && request.comment) ? `${request.comment}` : '';
     // console.log(`${new Date().toLocaleString('ru')} sheetComment, dbComment: ${sheetComment}, ${dbComment}`);
@@ -425,9 +427,32 @@ const checkCalculationUpdate = async(sheet) => {
       });
     }
 
+    try {
+      if(sheetCalculation !== dbCalculation && sheetCalculation.length && !dbCalculation.length) {
+        const dateFromTimestamp = parse(timestamp, 'dd.MM.yyyy HH:mm:ss', new Date());
+        const minutesDiff = differenceInMinutes(new Date(), dateFromTimestamp);
+        sendEmail(
+          transporter,
+          process.env.MAX_REQUEST_MINUTES_EMAIL,
+          process.env.MAX_REQUEST_MINUTES_USERNAME,
+          `Расчёт номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}, городом отгрузки ${request.departure} и доставкой в ${request.destination} был сделан за ${minutesDiff} минут`
+        );
+        if(minutesDiff > process.env.MAX_REQUEST_MINUTES) {
+          console.log(`${new Date().toLocaleString('ru')} Calculation ${rowIndex} too long`);
+          sendEmail(
+            transporter,
+            process.env.MAX_REQUEST_MINUTES_EMAIL,
+            process.env.MAX_REQUEST_MINUTES_USERNAME,
+            `Время расчёта номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}, городом отгрузки ${request.departure} и доставкой в ${request.destination} больше ${process.env.MAX_REQUEST_MINUTES} минут`
+          );
+        }
+      }
+    } catch(e) {
+      console.error(`${new Date().toLocaleString('ru')} Sending calculation duration error for calculation ${rowIndex}: `, e);
+    }
+
   }
-
-
+  
 };
 
 const checkUpdates = async(oldRowCount) => {

@@ -60,8 +60,8 @@ const getLastRowIndexWithValue = (sheet) => {
     const newRowCount = sheet.rowCount;
     let lastRowIndexWithValue = 0;
     for(let index = 0; index < newRowCount; index++) {
-        console.log(`${new Date().toLocaleString('ru')} Gonna check cell C${index+1}`);
-        console.log(`${new Date().toLocaleString('ru')} Value of cell C${index+1}: `, sheet.getCellByA1(`C${index+1}`).value);
+        // console.log(`${new Date().toLocaleString('ru')} Gonna check cell C${index+1}`);
+        // console.log(`${new Date().toLocaleString('ru')} Value of cell C${index+1}: `, sheet.getCellByA1(`C${index+1}`).value);
         if(!sheet.getCellByA1(`C${index+1}`).value) {
             lastRowIndexWithValue = index;
             break;
