@@ -41,7 +41,7 @@ const sendEmail = async(mailTransporter, toEmail, toName, text) => {
     // to: process.env.EMAIL_FOR_TEST, // list of receivers
     to: toEmail,
     subject: `Расчёт логистики для ${toName}`, // Subject line
-    text, // plain text body
+    text: `${text}\n\nЭто письмо сформировано автоматически сервером InariWork. Пожалуйста, не отвечайте на него. Ваше письмо не будет никому доставлено. Если у Вас есть вопросы, Вы можете обратиться в отдел логистики`, // plain text body
     // html: "<b>Hello world?</b>", // html body
   });
 
