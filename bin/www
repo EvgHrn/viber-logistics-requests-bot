@@ -431,19 +431,19 @@ const checkCalculationUpdate = async(sheet) => {
       if(sheetCalculation !== dbCalculation && sheetCalculation.length && !dbCalculation.length) {
         const dateFromTimestamp = parse(timestamp, 'dd.MM.yyyy HH:mm:ss', new Date());
         const minutesDiff = differenceInMinutes(new Date(), dateFromTimestamp);
-        sendEmail(
-          transporter,
-          process.env.MAX_REQUEST_MINUTES_EMAIL,
-          process.env.MAX_REQUEST_MINUTES_USERNAME,
-          `Расчёт номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}, городом отгрузки ${request.departure} и доставкой в ${request.destination} был сделан за ${minutesDiff} минут`
-        );
+        // sendEmail(
+        //   transporter,
+        //   process.env.MAX_REQUEST_MINUTES_EMAIL,
+        //   process.env.MAX_REQUEST_MINUTES_USERNAME,
+        //   `Расчёт номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}, городом отгрузки ${request.departure} и доставкой в ${request.destination} был сделан за ${minutesDiff} минут`
+        // );
         if(minutesDiff > process.env.MAX_REQUEST_MINUTES) {
           console.log(`${new Date().toLocaleString('ru')} Calculation ${rowIndex} too long`);
           sendEmail(
             transporter,
             process.env.MAX_REQUEST_MINUTES_EMAIL,
             process.env.MAX_REQUEST_MINUTES_USERNAME,
-            `Время расчёта номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}, городом отгрузки ${request.departure} и доставкой в ${request.destination} больше ${process.env.MAX_REQUEST_MINUTES} минут`
+            `Время расчёта номер ${rowIndex} на ${request.productName} с тиражом ${request.quantity}, городом отгрузки ${request.departure} и доставкой в ${request.destination} больше ${process.env.MAX_REQUEST_MINUTES} минут (${minutesDiff} минут)`
           );
         }
       }
